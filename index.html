@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body style="margin: 0; height: 100dvh">
+    <canvas style="width: 100%; height: 100%; object-fit: contain" />
+    <script type="module">
+        const canvas = document.querySelector('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        console.log(canvas);
+
+        const ctx = canvas.getContext('webgpu');
+        console.log(ctx);
+
+        if (!navigator.gpu) {
+            throw new Error("WebGPU not supported on this browser.");
+        }
+
+        const adapter = await navigator.gpu.requestAdapter();
+        console.log(adapter);
+
+        if (!adapter) {
+            throw new Error("No appropriate GPUAdapter found.");
+        }
+
+        const device = await adapter.requestDevice();
+        console.log(device);
+        
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        console.log(format);
+        
+        ctx.configure({ device, format });
+
+        const vertices = new Float32Array([
+            // Triangle 1
+            -0.8, 0.8,
+            0.8, 0.8,
+            -0.8, -0.8,
+            // Triangle 2
+            -0.8, -0.8,
+            0.8, 0.8,
+            0.8, -0.8,
+        ]);
+        const vertexBuffer = device.createBuffer({
+            label: 'Cell vertices',
+            size: vertices.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+        const vertexBufferLayout = {
+            arrayStride: 8,
+            attributes: [{
+                format: 'float32x2',
+                offset: 0,
+                shaderLocation: 0,
+            }],
+        };
+        const shader = device.createShaderModule({
+            label: 'Cell shader',
+            code: `
+                @vertex
+                fn vertex (@location(0) position: vec2f) -> @builtin(position) vec4f {
+                    return vec4f(position.x, position.y, 0, 1);
+                }
+
+                @fragment
+                fn fragment () -> @location(0) vec4f {
+                    return vec4f(1, 1, 1, 1);
+                }
+            `,
+        });
+        const pipeline = device.createRenderPipeline({
+            label: 'Cell pipeline',
+            layout: 'auto',
+            vertex: {
+                module: shader,
+                entryPoint: 'vertex',
+                buffers: [vertexBufferLayout],
+            },
+            fragment: {
+                module: shader,
+                entryPoint: 'fragment',
+                targets: [{
+                    format,
+                }]
+            },
+        });
+
+        const encoder = device.createCommandEncoder();
+        console.log(encoder);
+
+        const pass = encoder.beginRenderPass({
+            colorAttachments: [{
+                view: ctx.getCurrentTexture().createView(),
+                loadOp: 'clear',
+                clearValue: { r: 0.53, g: 0.81, b: 0.92, a: 1 },
+                storeOp: 'store',
+            }],
+        });
+        pass.setPipeline(pipeline);
+        pass.setVertexBuffer(0, vertexBuffer);
+        pass.draw(vertices.length / 2); // 2D with no additional attribute
+        pass.end();
+
+        const buffer = encoder.finish();
+        console.log(buffer);
+
+        device.queue.writeBuffer(vertexBuffer, 0, vertices);
+        device.queue.submit([buffer]);
+    </script>
+</body>
+</html>
