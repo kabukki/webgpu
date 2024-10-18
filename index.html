@@ -6,8 +6,11 @@
     <title>Document</title>
 </head>
 <body style="margin: 0; height: 100dvh">
-    <canvas style="width: 100%; height: 100%; object-fit: contain" />
+    <canvas style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;" />
     <script type="module">
+        const GRID_WIDTH = 64;
+        const GRID_HEIGHT = 64;
+
         const canvas = document.querySelector('canvas');
         canvas.width = 512;
         canvas.height = 512;
@@ -50,25 +53,54 @@
             size: vertices.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
-        const vertexBufferLayout = {
-            arrayStride: 8,
-            attributes: [{
-                format: 'float32x2',
-                offset: 0,
-                shaderLocation: 0,
-            }],
-        };
+        device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+        const uniform = new Float32Array([GRID_WIDTH, GRID_HEIGHT]);
+        const uniformBuffer = device.createBuffer({
+            label: 'Grid Uniforms',
+            size: uniform.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(uniformBuffer, 0, uniform);
+
         const shader = device.createShaderModule({
             label: 'Cell shader',
             code: `
+                @group(0) @binding(0) var<uniform> grid: vec2f;
+
+                struct Input {
+                    @location(0) position: vec2f,
+                    @builtin(instance_index) instance: u32
+                }
+
+                struct Output {
+                    @builtin(position) position: vec4f,
+                    @location(0) cell: vec2f,
+                    @location(1) state: f32,
+                }
+
                 @vertex
-                fn vertex (@location(0) position: vec2f) -> @builtin(position) vec4f {
-                    return vec4f(position.x, position.y, 0, 1);
+                fn vertex (input: Input) -> Output {
+                    var out: Output;
+                    let n = f32(input.instance);
+                    let cell = vec2f(n % grid.x, floor(n / grid.y));
+                    let unit = vec2f(2 / grid); // -1 <-> 1 = 2
+
+                    out.position = vec4f((input.position + 1) / grid - 1 + (cell * unit), 0, 1);
+                    out.cell = cell;
+                    out.state = 1.0f;
+
+                    return out;
                 }
 
                 @fragment
-                fn fragment () -> @location(0) vec4f {
-                    return vec4f(1, 1, 1, 1);
+                fn fragment (out: Output) -> @location(0) vec4f {
+                    return vec4f(
+                        out.cell.x / grid.x,
+                        out.cell.y / grid.y,
+                        1 - out.cell.x / grid.x,
+                        1,
+                    );
                 }
             `,
         });
@@ -78,15 +110,32 @@
             vertex: {
                 module: shader,
                 entryPoint: 'vertex',
-                buffers: [vertexBufferLayout],
+                buffers: [{
+                    arrayStride: 8,
+                    attributes: [{
+                        format: 'float32x2',
+                        offset: 0,
+                        shaderLocation: 0,
+                    }],
+                }],
             },
             fragment: {
                 module: shader,
                 entryPoint: 'fragment',
                 targets: [{
                     format,
-                }]
+                }],
             },
+        });
+        const group = device.createBindGroup({
+            label: 'Cell bind group',
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [{
+                binding: 0,
+                resource: {
+                    buffer: uniformBuffer,
+                },
+            }],
         });
 
         const encoder = device.createCommandEncoder();
@@ -96,20 +145,17 @@
             colorAttachments: [{
                 view: ctx.getCurrentTexture().createView(),
                 loadOp: 'clear',
-                clearValue: { r: 0.53, g: 0.81, b: 0.92, a: 1 },
+                clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1 },
                 storeOp: 'store',
             }],
         });
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, vertexBuffer);
-        pass.draw(vertices.length / 2); // 2D with no additional attribute
+        pass.setBindGroup(0, group);
+        pass.draw(vertices.length / 2, GRID_WIDTH * GRID_HEIGHT); // 2D with no additional attribute
         pass.end();
 
-        const buffer = encoder.finish();
-        console.log(buffer);
-
-        device.queue.writeBuffer(vertexBuffer, 0, vertices);
-        device.queue.submit([buffer]);
+        device.queue.submit([encoder.finish()]);
     </script>
 </body>
 </html>
