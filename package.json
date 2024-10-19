@@ -1,0 +1,19 @@
+{
+  "name": "webgpu",
+  "version": "1.0.0",
+  "description": "https://codelabs.developers.google.com/your-first-webgpu-app",
+  "main": "index.js",
+  "scripts": {
+    "start": "vite"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tweakpane/plugin-essentials": "^0.2.1",
+    "tweakpane": "^4.0.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.9"
+  }
+}
