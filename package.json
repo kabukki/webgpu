@@ -4,7 +4,9 @@
   "description": "https://codelabs.developers.google.com/your-first-webgpu-app",
   "main": "index.js",
   "scripts": {
-    "start": "vite"
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [],
   "author": "",
