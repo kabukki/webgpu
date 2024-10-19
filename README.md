@@ -1,3 +1,5 @@
 # WebGPU game of life
 
-https://codelabs.developers.google.com/your-first-webgpu-app
+> Based on [Google's WebGPU codelab](https://codelabs.developers.google.com/your-first-webgpu-app).
+
+<img src="preview.png" />
